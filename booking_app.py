@@ -1,10 +1,10 @@
-!apt-get install mysql-server > /dev/null
-!service mysql start
-!mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';"
-!mysql -uroot -proot -e "CREATE DATABASE booking_app;"
-!pip install mysql
-!pip install mysql.connector
-!pip install streamlit
+apt-get install mysql-server > /dev/null
+service mysql start
+mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';"
+mysql -uroot -proot -e "CREATE DATABASE booking_app;"
+pip install mysql
+pip install mysql.connector
+pip install streamlit
 
 
 
