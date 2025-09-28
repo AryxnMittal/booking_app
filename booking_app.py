@@ -7,7 +7,7 @@ import plotly.express as px
 
 def create_connection():
     return mysql.connector.connect(
-        host="sql12.freesqldatabase.com	",
+        host="sql12.freesqldatabase.com",
         port=3306,
         user="sql12800450",
         password="wqhsWEXUN2",
