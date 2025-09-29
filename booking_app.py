@@ -7,13 +7,14 @@ import plotly.express as px
 
 def create_connection():
     return mysql.connector.connect(
-        host="sql12.freesqldatabase.com	",
-        port=3306,
-        user="sql12800450",
-        password="wqhsWEXUN2",
-        database="sql12800450",
+        host=st.secrets["DB_HOST"],
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASS"],
+        database=st.secrets["DB_NAME"],
+        port=int(st.secrets.get("DB_PORT", 3306)),
         autocommit=False
     )
+
 
 def create_tables():
     conn = create_connection()
