@@ -1,5 +1,5 @@
 import streamlit as st
-import mysql.connector
+import pymysql
 from datetime import datetime
 import pandas as pd
 from fpdf import FPDF
@@ -7,7 +7,7 @@ import plotly.express as px
 
 # ---------------- DATABASE CONNECTION ----------------
 def create_connection():
-    return mysql.connector.connect(
+    return pymysql.connect(
         host=st.secrets["DB_HOST"],
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASS"],
