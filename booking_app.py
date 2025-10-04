@@ -16,36 +16,7 @@ def get_connection():
         autocommit=False
     )
 
-# ---------------- CACHE STATIC DATA ----------------
-@st.cache_data
-def load_theatres():
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id,name FROM theatres")
-        return cursor.fetchall()
-
-@st.cache_data
-def load_movies(theatre_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id,name FROM movies WHERE theatre_id=%s", (theatre_id,))
-        return cursor.fetchall()
-
-@st.cache_data
-def load_showtimes(movie_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id,showtime FROM showtimes WHERE movie_id=%s", (movie_id,))
-        return cursor.fetchall()
-
-@st.cache_data
-def load_seats(showtime_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT seat_number,seat_type,booked FROM seats WHERE showtime_id=%s ORDER BY seat_type,seat_number",(showtime_id,))
-        return cursor.fetchall()
-
-# ---------------- INITIALIZE DB (RUN ONCE) ----------------
+# ---------------- INITIALIZE DB ----------------
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -84,15 +55,24 @@ def init_db():
             )""")
         conn.commit()
 
-# Run DB init once
+# ---------------- PRELOAD DATA INTO SESSION_STATE ----------------
+def preload_data():
+    if "theatres_data" not in st.session_state:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id,name FROM theatres")
+            st.session_state.theatres_data = cursor.fetchall()
+
+# ---------------- INITIALIZATION ----------------
 if "db_initialized" not in st.session_state:
     try:
         init_db()
+        preload_data()
         st.session_state.db_initialized = True
     except Exception as e:
         st.error(f"DB Initialization Failed: {e}")
 
-# ---------------- STREAMLIT APP ----------------
+# ---------------- APP CONFIG ----------------
 st.set_page_config(page_title="🎬 Movie Booking", layout="wide")
 st.title("🎬 ARYAN & DAKSH MOVIE BOOKING APP")
 menu = ["Home","Book Ticket","Statistics","Admin Panel"]
@@ -107,29 +87,43 @@ if choice=="Home":
 # ---------------- BOOK TICKET ----------------
 elif choice=="Book Ticket":
     try:
-        # Theatre selection
-        theatres = load_theatres()
-        theatre_dict = {t[1]: t[0] for t in theatres}
+        preload_data()
+        theatre_dict = {t[1]: t[0] for t in st.session_state.theatres_data}
         theatre_choice = st.selectbox("Select Theatre", list(theatre_dict.keys()))
         theatre_id = theatre_dict[theatre_choice]
 
-        # Movie selection
-        movies = load_movies(theatre_id)
-        movie_dict = {m[1]: m[0] for m in movies}
+        # Load movies for selected theatre
+        if "movies_data" not in st.session_state or st.session_state.get("theatre_id") != theatre_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id,name FROM movies WHERE theatre_id=%s", (theatre_id,))
+                st.session_state.movies_data = cursor.fetchall()
+                st.session_state.theatre_id = theatre_id
+
+        movie_dict = {m[1]: m[0] for m in st.session_state.movies_data}
         movie_choice = st.selectbox("Select Movie", list(movie_dict.keys()))
         movie_id = movie_dict[movie_choice]
 
-        # Showtime selection
-        showtimes = load_showtimes(movie_id)
-        showtime_dict = {str(s[1]): s[0] for s in showtimes}
+        # Load showtimes for selected movie
+        if "showtimes_data" not in st.session_state or st.session_state.get("movie_id") != movie_id:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id,showtime FROM showtimes WHERE movie_id=%s", (movie_id,))
+                st.session_state.showtimes_data = cursor.fetchall()
+                st.session_state.movie_id = movie_id
+
+        showtime_dict = {str(s[1]): s[0] for s in st.session_state.showtimes_data}
         showtime_choice = st.selectbox("Select Showtime", list(showtime_dict.keys()))
         showtime_id = showtime_dict[showtime_choice]
 
         # Load seats once
         if "seats_data" not in st.session_state or st.session_state.get("showtime_id") != showtime_id:
-            st.session_state.seats_data = load_seats(showtime_id)
-            st.session_state.selected_seats = []
-            st.session_state.showtime_id = showtime_id
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT seat_number,seat_type,booked FROM seats WHERE showtime_id=%s ORDER BY seat_type,seat_number",(showtime_id,))
+                st.session_state.seats_data = cursor.fetchall()
+                st.session_state.selected_seats = []
+                st.session_state.showtime_id = showtime_id
 
         # Seat selection UI
         st.markdown("### Select Seats (Max 10)")
@@ -153,7 +147,6 @@ elif choice=="Book Ticket":
                         else:
                             st.warning("⚠️ Max 10 seats allowed!")
 
-        # Display selection
         st.markdown(f"**Selected Seats:** {', '.join(st.session_state.selected_seats) if st.session_state.selected_seats else 'None'}")
         total_price = sum([price_map[s[1]] for s in st.session_state.seats_data if s[0] in st.session_state.selected_seats])
         st.markdown(f"**Total Price:** Rs.{total_price}")
@@ -189,6 +182,7 @@ elif choice=="Book Ticket":
                             )
                             conn.commit()
                             st.success(f"🎉 Booking Confirmed! Seats: {', '.join(booked_success)}")
+
                             # PDF receipt
                             pdf = FPDF()
                             pdf.add_page()
@@ -228,7 +222,7 @@ elif choice=="Statistics":
             col2.metric("💰 Total Spent (Rs.)", int(total_spent))
 
             df_recent = pd.read_sql("SELECT user_name,theatre_id,movie_id,showtime_id,seats_selected,total_price,booking_time FROM bookings ORDER BY booking_time DESC LIMIT 10",conn)
-            st.dataframe(df_recent,use_container_width=True)
+            st.dataframe(df_recent, use_container_width=True)
 
             df_chart = pd.read_sql("""
                 SELECT DATE(booking_time) as date, COUNT(*) as bookings_count
@@ -236,13 +230,12 @@ elif choice=="Statistics":
                 GROUP BY DATE(booking_time)
                 ORDER BY date DESC
                 LIMIT 10
-            """,conn)
+            """, conn)
             if not df_chart.empty:
-                fig = px.bar(df_chart,x="date",y="bookings_count",title="📊 Bookings Trend (Last 10 Days)")
-                st.plotly_chart(fig,use_container_width=True)
+                fig = px.bar(df_chart, x="date", y="bookings_count", title="📊 Bookings Trend (Last 10 Days)")
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No bookings yet to plot.")
-
     except Exception as e:
         st.error(f"DB Error: {e}")
 
@@ -255,7 +248,7 @@ elif choice=="Admin Panel":
         try:
             with get_connection() as conn:
                 cursor = conn.cursor()
-                # Add/Delete Theatre
+
                 st.markdown("### ➕ Add Theatre")
                 theatre_name = st.text_input("Theatre Name", key="admin_add_theatre")
                 if st.button("Add Theatre"):
@@ -263,21 +256,22 @@ elif choice=="Admin Panel":
                         cursor.execute("INSERT INTO theatres (name) VALUES (%s)",(theatre_name.strip(),))
                         conn.commit()
                         st.success("✅ Theatre Added")
+                        st.session_state.pop("theatres_data", None)
 
                 st.markdown("### ➖ Delete Theatre")
                 cursor.execute("SELECT id,name FROM theatres ORDER BY name")
                 theatres = cursor.fetchall()
-                theatre_dict = {t[1]: t[0] for t in theatres}
-                if theatres:
+                theatre_dict = {t[1]:t[0] for t in theatres}
+                if theatre_dict:
                     del_theatre = st.selectbox("Select Theatre to Delete", list(theatre_dict.keys()), key="del_theatre")
                     if st.button("Delete Theatre"):
                         cursor.execute("DELETE FROM theatres WHERE id=%s",(theatre_dict[del_theatre],))
                         conn.commit()
                         st.success("✅ Theatre Deleted")
+                        st.session_state.pop("theatres_data", None)
 
-                # Add/Delete Movie
                 st.markdown("### ➕ Add Movie")
-                if theatres:
+                if theatre_dict:
                     sel_theatre = st.selectbox("Select Theatre for Movie", list(theatre_dict.keys()), key="admin_sel_theatre")
                     movie_name = st.text_input("Movie Name", key="admin_add_movie")
                     if st.button("Add Movie"):
@@ -285,21 +279,22 @@ elif choice=="Admin Panel":
                             cursor.execute("INSERT INTO movies (name,theatre_id) VALUES (%s,%s)",(movie_name.strip(),theatre_dict[sel_theatre]))
                             conn.commit()
                             st.success("✅ Movie Added")
+                            st.session_state.pop("movies_data", None)
 
                 st.markdown("### ➖ Delete Movie")
                 cursor.execute("SELECT id,name FROM movies ORDER BY name")
                 movies = cursor.fetchall()
                 movie_dict = {m[1]:m[0] for m in movies}
-                if movies:
+                if movie_dict:
                     del_movie = st.selectbox("Select Movie to Delete", list(movie_dict.keys()), key="del_movie")
                     if st.button("Delete Movie"):
                         cursor.execute("DELETE FROM movies WHERE id=%s",(movie_dict[del_movie],))
                         conn.commit()
                         st.success("✅ Movie Deleted")
+                        st.session_state.pop("movies_data", None)
 
-                # Add/Delete Showtime
                 st.markdown("### ➕ Add Showtime")
-                if movies:
+                if movie_dict:
                     sel_movie = st.selectbox("Select Movie for Showtime", list(movie_dict.keys()), key="admin_sel_showtime_movie")
                     showtime = st.text_input("Showtime (HH:MM:SS)", "16:00:00", key="admin_add_showtime")
                     if st.button("Add Showtime"):
@@ -307,17 +302,19 @@ elif choice=="Admin Panel":
                             cursor.execute("INSERT INTO showtimes (movie_id,showtime) VALUES (%s,%s)",(movie_dict[sel_movie],showtime.strip()))
                             conn.commit()
                             st.success("✅ Showtime Added")
+                            st.session_state.pop("showtimes_data", None)
 
                 st.markdown("### ➖ Delete Showtime")
                 cursor.execute("SELECT id,movie_id,showtime FROM showtimes ORDER BY showtime")
                 showtimes = cursor.fetchall()
                 showtime_dict = {f"{s[2]} ({[m[1] for m in movies if m[0]==s[1]][0]})":s[0] for s in showtimes}
-                if showtimes:
+                if showtime_dict:
                     del_showtime = st.selectbox("Select Showtime to Delete", list(showtime_dict.keys()), key="del_showtime")
                     if st.button("Delete Showtime"):
                         cursor.execute("DELETE FROM showtimes WHERE id=%s",(showtime_dict[del_showtime],))
                         conn.commit()
                         st.success("✅ Showtime Deleted")
+                        st.session_state.pop("showtimes_data", None)
 
         except Exception as e:
             st.error(f"DB Error: {e}")
