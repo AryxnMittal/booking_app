@@ -126,26 +126,29 @@ elif choice=="Book Ticket":
                 st.session_state.showtime_id = showtime_id
 
         # Seat selection UI
-        st.markdown("### Select Seats (Max 10)")
-        cols = st.columns(7)
-        for stype in ["Standard","Premium","VIP"]:
-            st.markdown(f"#### {stype} (Rs.{price_map[stype]})")
-            type_seats = [s for s in st.session_state.seats_data if s[1]==stype]
-            for idx, (seat_num, _, booked) in enumerate(type_seats):
-                col = cols[idx % 7]
-                key = f"{stype}_{seat_num}"
-                if booked:
-                    col.button(f"❌{seat_num}", key=key, disabled=True)
-                else:
-                    selected = seat_num in st.session_state.selected_seats
-                    label = f"🟢{seat_num}" if selected else seat_num
-                    if col.button(label, key=key):
-                        if selected:
-                            st.session_state.selected_seats.remove(seat_num)
-                        elif len(st.session_state.selected_seats) < 10:
-                            st.session_state.selected_seats.append(seat_num)
-                        else:
-                            st.warning("⚠️ Max 10 seats allowed!")
+st.markdown("### Select Seats (Max 10)")
+for stype in ["Standard","Premium","VIP"]:
+    st.markdown(f"#### {stype} (Rs.{price_map[stype]})")
+    type_seats = [s for s in st.session_state.seats_data if s[1]==stype]
+    cols_per_row = 7
+    for i in range(0, len(type_seats), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for idx, (seat_num, _, booked) in enumerate(type_seats[i:i+cols_per_row]):
+            col = cols[idx]
+            key = f"{stype}_{seat_num}"
+            if booked:
+                col.button(f"❌{seat_num}", key=key, disabled=True)
+            else:
+                selected = seat_num in st.session_state.selected_seats
+                label = f"🟢{seat_num}" if selected else seat_num
+                if col.button(label, key=key):
+                    if selected:
+                        st.session_state.selected_seats.remove(seat_num)
+                    elif len(st.session_state.selected_seats) < 10:
+                        st.session_state.selected_seats.append(seat_num)
+                    else:
+                        st.warning("⚠️ Max 10 seats allowed!")
+
 
         st.markdown(f"**Selected Seats:** {', '.join(st.session_state.selected_seats) if st.session_state.selected_seats else 'None'}")
         total_price = sum([price_map[s[1]] for s in st.session_state.seats_data if s[0] in st.session_state.selected_seats])
