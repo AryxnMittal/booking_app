@@ -120,46 +120,47 @@ elif choice=="Book Ticket":
         if "seats_data" not in st.session_state or st.session_state.get("showtime_id") != showtime_id:
             with get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT seat_number,seat_type,booked FROM seats WHERE showtime_id=%s ORDER BY seat_type,seat_number",(showtime_id,))
+                cursor.execute(
+                    "SELECT seat_number,seat_type,booked FROM seats WHERE showtime_id=%s ORDER BY seat_type,seat_number",
+                    (showtime_id,)
+                )
                 st.session_state.seats_data = cursor.fetchall()
                 st.session_state.selected_seats = []
                 st.session_state.showtime_id = showtime_id
 
-        # Seat selection UI
-st.markdown("### Select Seats (Max 10)")
-for stype in ["Standard","Premium","VIP"]:
-    st.markdown(f"#### {stype} (Rs.{price_map[stype]})")
-    type_seats = [s for s in st.session_state.seats_data if s[1]==stype]
-    cols_per_row = 7
-    for i in range(0, len(type_seats), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for idx, (seat_num, _, booked) in enumerate(type_seats[i:i+cols_per_row]):
-            col = cols[idx]
-            key = f"{stype}_{seat_num}"
-            if booked:
-                col.button(f"❌{seat_num}", key=key, disabled=True)
-            else:
-                selected = seat_num in st.session_state.selected_seats
-                label = f"🟢{seat_num}" if selected else seat_num
-                if col.button(label, key=key):
-                    if selected:
-                        st.session_state.selected_seats.remove(seat_num)
-                    elif len(st.session_state.selected_seats) < 10:
-                        st.session_state.selected_seats.append(seat_num)
+        # ---------------- SEAT SELECTION UI ----------------
+        st.markdown("### Select Seats (Max 10)")
+        for stype in ["Standard","Premium","VIP"]:
+            st.markdown(f"#### {stype} (Rs.{price_map[stype]})")
+            type_seats = [s for s in st.session_state.seats_data if s[1]==stype]
+            cols_per_row = 7
+            for i in range(0, len(type_seats), cols_per_row):
+                cols = st.columns(cols_per_row)
+                for idx, (seat_num, _, booked) in enumerate(type_seats[i:i+cols_per_row]):
+                    col = cols[idx]
+                    key = f"{stype}_{seat_num}"
+                    if booked:
+                        col.button(f"❌{seat_num}", key=key, disabled=True)
                     else:
-                        st.warning("⚠️ Max 10 seats allowed!")
+                        selected = seat_num in st.session_state.selected_seats
+                        label = f"🟢{seat_num}" if selected else seat_num
+                        if col.button(label, key=key):
+                            if selected:
+                                st.session_state.selected_seats.remove(seat_num)
+                            elif len(st.session_state.selected_seats) < 10:
+                                st.session_state.selected_seats.append(seat_num)
+                            else:
+                                st.warning("⚠️ Max 10 seats allowed!")
 
+            st.markdown(f"**Selected Seats:** {', '.join(st.session_state.selected_seats) if st.session_state.selected_seats else 'None'}")
+            total_price = sum([price_map[s[1]] for s in st.session_state.seats_data if s[0] in st.session_state.selected_seats])
+            st.markdown(f"**Total Price:** Rs.{total_price}")
 
-        st.markdown(f"**Selected Seats:** {', '.join(st.session_state.selected_seats) if st.session_state.selected_seats else 'None'}")
-        total_price = sum([price_map[s[1]] for s in st.session_state.seats_data if s[0] in st.session_state.selected_seats])
-        st.markdown(f"**Total Price:** Rs.{total_price}")
-
-        # User info
+        # ---------------- USER INFO & BOOKING ----------------
         name = st.text_input("Name")
         email = st.text_input("Email")
         phone = st.text_input("Phone")
 
-        # Confirm booking
         if st.button("Confirm Booking"):
             if not st.session_state.selected_seats:
                 st.error("Select at least 1 seat!")
@@ -171,7 +172,10 @@ for stype in ["Standard","Premium","VIP"]:
                         cursor = conn.cursor()
                         booked_success = []
                         for s in st.session_state.selected_seats:
-                            cursor.execute("UPDATE seats SET booked=TRUE WHERE showtime_id=%s AND seat_number=%s AND booked=FALSE", (showtime_id,s))
+                            cursor.execute(
+                                "UPDATE seats SET booked=TRUE WHERE showtime_id=%s AND seat_number=%s AND booked=FALSE",
+                                (showtime_id,s)
+                            )
                             if cursor.rowcount == 1:
                                 booked_success.append(s)
                         if not booked_success:
@@ -204,7 +208,12 @@ for stype in ["Standard","Premium","VIP"]:
                                 pdf.cell(0,8,f" - {s}",ln=True)
                             pdf.cell(0,10,f"Total Price: Rs.{total_price}",ln=True)
                             pdf_bytes = pdf.output(dest='S').encode('latin-1', 'replace')
-                            st.download_button("📥 Download Receipt",data=pdf_bytes,file_name=f"receipt_{name.replace(' ','')}.pdf",mime="application/pdf")
+                            st.download_button(
+                                "📥 Download Receipt",
+                                data=pdf_bytes,
+                                file_name=f"receipt_{name.replace(' ','')}.pdf",
+                                mime="application/pdf"
+                            )
                             st.session_state.selected_seats = []
                 except Exception as e:
                     st.error(f"Booking Failed: {e}")
