@@ -1,3 +1,4 @@
+#physics wallah site phsyicswallahalakhpandey.com   https://web.archive.org/web/20210411035426/http://physicswallahalakhpandey.com/
 import streamlit as st
 import pymysql
 from datetime import datetime
