@@ -12,6 +12,7 @@ def create_connection():
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASS"],
         database=st.secrets["DB_NAME"],
+        ssl={"ssl": {}},
         port=int(st.secrets.get("DB_PORT", 3306)),
         autocommit=False
     )
