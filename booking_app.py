@@ -19,7 +19,7 @@ def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("CREATE DATABASE IF NOT EXISTS booking_app")
-        cursor.execute("USE booking_app_db")
+        cursor.execute("USE booking_app")
         cursor.execute("""CREATE TABLE IF NOT EXISTS theatres (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(100)
