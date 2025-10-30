@@ -3,6 +3,7 @@ import pymysql
 from datetime import datetime
 from fpdf import FPDF
 
+
 def get_connection():
     return pymysql.connect(
         host=st.secrets["DB_HOST"],
@@ -16,6 +17,8 @@ def get_connection():
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("CREATE DATABASE IF NOT EXISTS booking_app")
+        cursor.execute("USE booking_app_db")
         cursor.execute("""CREATE TABLE IF NOT EXISTS theatres (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(100)
