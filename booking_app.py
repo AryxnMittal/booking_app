@@ -9,7 +9,7 @@ def get_connection():
         host=st.secrets["DB_HOST"],
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASS"],
-        #database=st.secrets["DB_NAME"],
+        database=st.secrets["DB_NAME"],
         port=int(st.secrets.get("DB_PORT")),
         ssl={"ssl": {}},
         autocommit=False
@@ -18,8 +18,6 @@ def get_connection():
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE DATABASE IF NOT EXISTS booking_app")
-        cursor.execute("USE booking_app")
         cursor.execute("""CREATE TABLE IF NOT EXISTS theatres (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(100)
